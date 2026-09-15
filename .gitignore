@@ -1,0 +1,16 @@
+build
+mx.scratch
+!.settings
+
+# Build outputs
+Debug/
+Release/
+*.o
+*.elf
+*.bin
+*.hex
+*.map
+
+# CubeMX/IDE specific files
+.mxproject
+

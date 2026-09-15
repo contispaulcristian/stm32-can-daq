@@ -1,0 +1,28 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug Custom G4",
+            "type": "cortex-debug",
+            "request": "launch",
+            "servertype": "openocd",
+            "cwd": "${workspaceFolder}",
+            "executable": "${workspaceFolder}/build/Debug/ConfigProject.elf",
+            "gdbPath": "gdb-multiarch",
+            "objdumpPath": "arm-none-eabi-objdump",
+            "nmPath": "arm-none-eabi-nm",
+            "configFiles": [
+                "interface/stlink.cfg",
+                "target/stm32g4x.cfg"
+            ],
+            "runToEntryPoint": "main",
+            "openOCDPreConfigLaunchCommands": [
+                "reset_config none"
+            ],
+            "liveWatch": {
+                "enabled": true,
+                "samplesPerSecond": 4
+            }
+        }
+    ]
+}
