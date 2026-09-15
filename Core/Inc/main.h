@@ -57,12 +57,12 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
-#define IN_S4_Pin GPIO_PIN_13
-#define IN_S4_GPIO_Port GPIOC
-#define IN_S5_Pin GPIO_PIN_14
-#define IN_S5_GPIO_Port GPIOC
-#define IN_S6_Pin GPIO_PIN_15
-#define IN_S6_GPIO_Port GPIOC
+#define IN_S3_Pin GPIO_PIN_13
+#define IN_S3_GPIO_Port GPIOC
+#define EFUSE_EN3_Pin GPIO_PIN_14
+#define EFUSE_EN3_GPIO_Port GPIOC
+#define FLT_S3_Pin GPIO_PIN_15
+#define FLT_S3_GPIO_Port GPIOC
 #define ADC1_BACK_1_Pin GPIO_PIN_0
 #define ADC1_BACK_1_GPIO_Port GPIOA
 #define ADC1_FRONT_1_1_Pin GPIO_PIN_1
@@ -83,32 +83,32 @@ void Error_Handler(void);
 #define FLT_S1_GPIO_Port GPIOB
 #define EFUSE_EN1_Pin GPIO_PIN_10
 #define EFUSE_EN1_GPIO_Port GPIOB
-#define EFUSE_EN2_Pin GPIO_PIN_11
-#define EFUSE_EN2_GPIO_Port GPIOB
-#define EFUSE_EN3_Pin GPIO_PIN_12
-#define EFUSE_EN3_GPIO_Port GPIOB
-#define EFUSE_EN4_Pin GPIO_PIN_13
-#define EFUSE_EN4_GPIO_Port GPIOB
-#define EFUSE_EN5_Pin GPIO_PIN_14
-#define EFUSE_EN5_GPIO_Port GPIOB
-#define EFUSE_EN6_Pin GPIO_PIN_15
-#define EFUSE_EN6_GPIO_Port GPIOB
-#define IN_S1_Pin GPIO_PIN_6
-#define IN_S1_GPIO_Port GPIOC
-#define IN_S2_Pin GPIO_PIN_10
-#define IN_S2_GPIO_Port GPIOC
-#define IN_S3_Pin GPIO_PIN_11
-#define IN_S3_GPIO_Port GPIOC
-#define FLT_S2_Pin GPIO_PIN_3
+#define IN_S1_Pin GPIO_PIN_11
+#define IN_S1_GPIO_Port GPIOB
+#define FLT_S2_Pin GPIO_PIN_12
 #define FLT_S2_GPIO_Port GPIOB
-#define FLT_S3_Pin GPIO_PIN_4
-#define FLT_S3_GPIO_Port GPIOB
-#define FLT_S4_Pin GPIO_PIN_5
-#define FLT_S4_GPIO_Port GPIOB
-#define FLT_S5_Pin GPIO_PIN_6
+#define EFUSE_EN2_Pin GPIO_PIN_13
+#define EFUSE_EN2_GPIO_Port GPIOB
+#define IN_S2_Pin GPIO_PIN_14
+#define IN_S2_GPIO_Port GPIOB
+#define IN_S6_Pin GPIO_PIN_15
+#define IN_S6_GPIO_Port GPIOB
+#define EFUSE_EN6_Pin GPIO_PIN_6
+#define EFUSE_EN6_GPIO_Port GPIOC
+#define FLT_S6_Pin GPIO_PIN_10
+#define FLT_S6_GPIO_Port GPIOC
+#define IN_S5_Pin GPIO_PIN_11
+#define IN_S5_GPIO_Port GPIOC
+#define EFUSE_EN5_Pin GPIO_PIN_3
+#define EFUSE_EN5_GPIO_Port GPIOB
+#define FLT_S5_Pin GPIO_PIN_4
 #define FLT_S5_GPIO_Port GPIOB
-#define FLT_S6_Pin GPIO_PIN_7
-#define FLT_S6_GPIO_Port GPIOB
+#define IN_S4_Pin GPIO_PIN_5
+#define IN_S4_GPIO_Port GPIOB
+#define EFUSE_EN4_Pin GPIO_PIN_6
+#define EFUSE_EN4_GPIO_Port GPIOB
+#define FLT_S4_Pin GPIO_PIN_7
+#define FLT_S4_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
 

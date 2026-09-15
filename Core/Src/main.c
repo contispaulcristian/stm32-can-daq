@@ -71,6 +71,7 @@ uint32_t counter = 0U;
 uint16_t adc1_buffer[3];
 uint16_t adc2_buffer[3];
 uint16_t adc3_buffer[2];
+GPIO_PinState vision_buffer[6];
 /* USER CODE END 0 */
 
 /**
@@ -109,21 +110,24 @@ int main(void)
   MX_FDCAN1_Init();
   /* USER CODE BEGIN 2 */
 
-  HAL_GPIO_WritePin(EFUSE_EN1_GPIO_Port, EFUSE_EN1_Pin, GPIO_PIN_SET);
-  HAL_GPIO_WritePin(EFUSE_EN2_GPIO_Port, EFUSE_EN2_Pin, GPIO_PIN_SET);
-  HAL_GPIO_WritePin(EFUSE_EN3_GPIO_Port, EFUSE_EN3_Pin, GPIO_PIN_SET);
+  HAL_GPIO_WritePin(EFUSE_EN1_GPIO_Port, EFUSE_EN1_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(EFUSE_EN2_GPIO_Port, EFUSE_EN2_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(EFUSE_EN3_GPIO_Port, EFUSE_EN3_Pin, GPIO_PIN_RESET);
   HAL_GPIO_WritePin(EFUSE_EN4_GPIO_Port, EFUSE_EN4_Pin, GPIO_PIN_SET);
   HAL_GPIO_WritePin(EFUSE_EN5_GPIO_Port, EFUSE_EN5_Pin, GPIO_PIN_SET);
-  HAL_GPIO_WritePin(EFUSE_EN6_GPIO_Port, EFUSE_EN6_Pin, GPIO_PIN_SET);
+  HAL_GPIO_WritePin(EFUSE_EN6_GPIO_Port, EFUSE_EN6_Pin, GPIO_PIN_RESET);
+
+
 
 
 
    
-  // Calibrate the ADC (CRITICAL FOR G4 SERIES)
+  /* Calibrate the ADC */ 
   HAL_ADCEx_Calibration_Start(&hadc1, ADC_SINGLE_ENDED);
   HAL_ADCEx_Calibration_Start(&hadc2, ADC_SINGLE_ENDED);
   HAL_ADCEx_Calibration_Start(&hadc3, ADC_SINGLE_ENDED);
  
+  /* Start DMA acq */
   HAL_ADC_Start_DMA(&hadc1, (uint32_t*)adc1_buffer, 3);
   HAL_ADC_Start_DMA(&hadc2, (uint32_t*)adc2_buffer, 3);
   HAL_ADC_Start_DMA(&hadc3, (uint32_t*)adc3_buffer, 2);
@@ -137,6 +141,12 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+    vision_buffer[0] = HAL_GPIO_ReadPin(IN_S1_GPIO_Port, IN_S1_Pin); /* Temp not used. */
+    vision_buffer[1] = HAL_GPIO_ReadPin(IN_S2_GPIO_Port, IN_S2_Pin); /* Temp not used. */
+    vision_buffer[2] = HAL_GPIO_ReadPin(IN_S3_GPIO_Port, IN_S3_Pin); /* Temp not used. */
+    vision_buffer[3] = HAL_GPIO_ReadPin(IN_S4_GPIO_Port, IN_S4_Pin); 
+    vision_buffer[4] = HAL_GPIO_ReadPin(IN_S5_GPIO_Port, IN_S5_Pin);
+    vision_buffer[5] = HAL_GPIO_ReadPin(IN_S6_GPIO_Port, IN_S6_Pin); /* Temp not used. */
   }
   /* USER CODE END 3 */
 }
@@ -497,41 +507,41 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOC, IN_S4_Pin|IN_S5_Pin|IN_S6_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOC, EFUSE_EN3_Pin|EFUSE_EN6_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, EFUSE_EN1_Pin|EFUSE_EN2_Pin|EFUSE_EN3_Pin|EFUSE_EN4_Pin
-                          |EFUSE_EN5_Pin|EFUSE_EN6_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOB, EFUSE_EN1_Pin|EFUSE_EN2_Pin|IN_S6_Pin|EFUSE_EN5_Pin
+                          |EFUSE_EN4_Pin, GPIO_PIN_RESET);
 
-  /*Configure GPIO pins : IN_S4_Pin IN_S5_Pin IN_S6_Pin */
-  GPIO_InitStruct.Pin = IN_S4_Pin|IN_S5_Pin|IN_S6_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  /*Configure GPIO pins : IN_S3_Pin FLT_S3_Pin FLT_S6_Pin IN_S5_Pin */
+  GPIO_InitStruct.Pin = IN_S3_Pin|FLT_S3_Pin|FLT_S6_Pin|IN_S5_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : EFUSE_EN3_Pin EFUSE_EN6_Pin */
+  GPIO_InitStruct.Pin = EFUSE_EN3_Pin|EFUSE_EN6_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : FLT_S1_Pin FLT_S2_Pin FLT_S3_Pin FLT_S4_Pin
-                           FLT_S5_Pin FLT_S6_Pin */
-  GPIO_InitStruct.Pin = FLT_S1_Pin|FLT_S2_Pin|FLT_S3_Pin|FLT_S4_Pin
-                          |FLT_S5_Pin|FLT_S6_Pin;
+  /*Configure GPIO pins : FLT_S1_Pin IN_S1_Pin FLT_S2_Pin IN_S2_Pin
+                           FLT_S5_Pin IN_S4_Pin FLT_S4_Pin */
+  GPIO_InitStruct.Pin = FLT_S1_Pin|IN_S1_Pin|FLT_S2_Pin|IN_S2_Pin
+                          |FLT_S5_Pin|IN_S4_Pin|FLT_S4_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : EFUSE_EN1_Pin EFUSE_EN2_Pin EFUSE_EN3_Pin EFUSE_EN4_Pin
-                           EFUSE_EN5_Pin EFUSE_EN6_Pin */
-  GPIO_InitStruct.Pin = EFUSE_EN1_Pin|EFUSE_EN2_Pin|EFUSE_EN3_Pin|EFUSE_EN4_Pin
-                          |EFUSE_EN5_Pin|EFUSE_EN6_Pin;
+  /*Configure GPIO pins : EFUSE_EN1_Pin EFUSE_EN2_Pin IN_S6_Pin EFUSE_EN5_Pin
+                           EFUSE_EN4_Pin */
+  GPIO_InitStruct.Pin = EFUSE_EN1_Pin|EFUSE_EN2_Pin|IN_S6_Pin|EFUSE_EN5_Pin
+                          |EFUSE_EN4_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_PULLDOWN;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
-
-  /*Configure GPIO pins : IN_S1_Pin IN_S2_Pin IN_S3_Pin */
-  GPIO_InitStruct.Pin = IN_S1_Pin|IN_S2_Pin|IN_S3_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
 
