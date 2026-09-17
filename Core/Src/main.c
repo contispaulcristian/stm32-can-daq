@@ -35,7 +35,8 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
+#define CAN_VISION_MASK_ID  0x60
+#define CAN_LINE_MASK_ID    0x50
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -53,11 +54,12 @@
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
 
+void Vision_Sensors_Read (void);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-uint32_t counter = 0U;
+uint32_t counter = 0U; /* TODO: delete later. debug purpose only */
 uint16_t adc1_buffer[3];
 uint16_t adc2_buffer[3];
 uint16_t adc3_buffer[2];
@@ -100,17 +102,13 @@ int main(void)
   MX_FDCAN1_Init();
   /* USER CODE BEGIN 2 */
 
+  /* Enable Vision Sensors */
   HAL_GPIO_WritePin(EFUSE_EN1_GPIO_Port, EFUSE_EN1_Pin, GPIO_PIN_RESET);
   HAL_GPIO_WritePin(EFUSE_EN2_GPIO_Port, EFUSE_EN2_Pin, GPIO_PIN_RESET);
   HAL_GPIO_WritePin(EFUSE_EN3_GPIO_Port, EFUSE_EN3_Pin, GPIO_PIN_RESET);
   HAL_GPIO_WritePin(EFUSE_EN4_GPIO_Port, EFUSE_EN4_Pin, GPIO_PIN_SET);
   HAL_GPIO_WritePin(EFUSE_EN5_GPIO_Port, EFUSE_EN5_Pin, GPIO_PIN_SET);
   HAL_GPIO_WritePin(EFUSE_EN6_GPIO_Port, EFUSE_EN6_Pin, GPIO_PIN_RESET);
-
-
-
-
-
    
   /* Calibrate the ADC */ 
   HAL_ADCEx_Calibration_Start(&hadc1, ADC_SINGLE_ENDED);
@@ -127,16 +125,11 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-    counter++;
+    counter++; /* TODO: Delete later */
+    Vision_Sensors_Read();
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    vision_buffer[0] = HAL_GPIO_ReadPin(IN_S1_GPIO_Port, IN_S1_Pin); /* Temp not used. */
-    vision_buffer[1] = HAL_GPIO_ReadPin(IN_S2_GPIO_Port, IN_S2_Pin); /* Temp not used. */
-    vision_buffer[2] = HAL_GPIO_ReadPin(IN_S3_GPIO_Port, IN_S3_Pin); /* Temp not used. */
-    vision_buffer[3] = !HAL_GPIO_ReadPin(IN_S4_GPIO_Port, IN_S4_Pin); 
-    vision_buffer[4] = !HAL_GPIO_ReadPin(IN_S5_GPIO_Port, IN_S5_Pin);
-    vision_buffer[5] = HAL_GPIO_ReadPin(IN_S6_GPIO_Port, IN_S6_Pin); /* Temp not used. */
   }
   /* USER CODE END 3 */
 }
@@ -152,15 +145,20 @@ void SystemClock_Config(void)
 
   /** Configure the main internal regulator output voltage
   */
-  HAL_PWREx_ControlVoltageScaling(PWR_REGULATOR_VOLTAGE_SCALE1);
+  HAL_PWREx_ControlVoltageScaling(PWR_REGULATOR_VOLTAGE_SCALE1_BOOST);
 
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
-  RCC_OscInitStruct.HSIState = RCC_HSI_ON;
-  RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
-  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
+  RCC_OscInitStruct.HSEState = RCC_HSE_ON;
+  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
+  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
+  RCC_OscInitStruct.PLL.PLLM = RCC_PLLM_DIV2;
+  RCC_OscInitStruct.PLL.PLLN = 85;
+  RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
+  RCC_OscInitStruct.PLL.PLLQ = RCC_PLLQ_DIV2;
+  RCC_OscInitStruct.PLL.PLLR = RCC_PLLR_DIV2;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
     Error_Handler();
@@ -170,18 +168,38 @@ void SystemClock_Config(void)
   */
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
                               |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
-  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_HSI;
+  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK)
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_4) != HAL_OK)
   {
     Error_Handler();
   }
 }
 
 /* USER CODE BEGIN 4 */
+/**
+  * @brief  This function used to handle the line sensors
+  * @retval None
+  */
+void Line_Sensors_Handler (void)
+{
+
+}
+
+void Vision_Sensors_Read (void)
+{
+  vision_buffer[0] = !HAL_GPIO_ReadPin(IN_S1_GPIO_Port, IN_S1_Pin); /* Temp not used. */
+  vision_buffer[1] = !HAL_GPIO_ReadPin(IN_S2_GPIO_Port, IN_S2_Pin); /* Temp not used. */
+  vision_buffer[2] = !HAL_GPIO_ReadPin(IN_S3_GPIO_Port, IN_S3_Pin); /* Temp not used. */
+  vision_buffer[3] = !HAL_GPIO_ReadPin(IN_S4_GPIO_Port, IN_S4_Pin); 
+  vision_buffer[4] = !HAL_GPIO_ReadPin(IN_S5_GPIO_Port, IN_S5_Pin);
+  vision_buffer[5] = !HAL_GPIO_ReadPin(IN_S6_GPIO_Port, IN_S6_Pin); /* Temp not used. */
+  
+  return;
+}
 
 /* USER CODE END 4 */
 
