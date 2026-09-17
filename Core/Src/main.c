@@ -37,6 +37,12 @@
 /* USER CODE BEGIN PD */
 #define CAN_VISION_MASK_ID  0x60
 #define CAN_LINE_MASK_ID    0x50
+
+#define COMMAND_SET_THRESHOLDS 0x20
+#define COMMAND_SET_MODE       0x21
+
+#define SCANNING 1
+#define FAST     2
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -47,23 +53,36 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-
-/* USER CODE END PV */
-
-/* Private function prototypes -----------------------------------------------*/
-void SystemClock_Config(void);
-/* USER CODE BEGIN PFP */
-
-void Vision_Sensors_Read (void);
-/* USER CODE END PFP */
-
-/* Private user code ---------------------------------------------------------*/
-/* USER CODE BEGIN 0 */
 uint32_t counter = 0U; /* TODO: delete later. debug purpose only */
 uint16_t adc1_buffer[3];
 uint16_t adc2_buffer[3];
 uint16_t adc3_buffer[2];
 GPIO_PinState vision_buffer[6];
+
+// Legacy Protocol Variables
+uint8_t lineMeasurements[8] = {0};
+uint8_t lineThresholds[8] = {20, 20, 20, 20, 20, 20, 20, 20};
+uint8_t state = FAST;
+uint8_t previousDetection = 0;
+uint32_t lastSendTime = 0;
+/* USER CODE END PV */
+
+/* Private function prototypes -----------------------------------------------*/
+void SystemClock_Config(void);
+/* USER CODE BEGIN PFP */
+void Vision_Sensors_Read(void);
+void Vision_Sensors_Handler(void);
+
+void Line_Sensors_Handler(void);
+
+void FDCAN_Transmit(uint32_t id, const uint8_t *buffer, uint8_t buffer_size);
+void FDCAN_Restart(void);
+
+/* USER CODE END PFP */
+
+/* Private user code ---------------------------------------------------------*/
+/* USER CODE BEGIN 0 */
+
 /* USER CODE END 0 */
 
 /**
@@ -119,6 +138,18 @@ int main(void)
   HAL_ADC_Start_DMA(&hadc1, (uint32_t*)adc1_buffer, 3);
   HAL_ADC_Start_DMA(&hadc2, (uint32_t*)adc2_buffer, 3);
   HAL_ADC_Start_DMA(&hadc3, (uint32_t*)adc3_buffer, 2);
+
+  /* Configure FDCAN to accept all incoming messages into FIFO0 */
+  HAL_FDCAN_ConfigGlobalFilter(&hfdcan1, FDCAN_REJECT, FDCAN_REJECT, FDCAN_FILTER_REMOTE, FDCAN_FILTER_REMOTE);
+  HAL_FDCAN_ConfigGlobalFilter(&hfdcan1, FDCAN_ACCEPT_IN_RX_FIFO0, FDCAN_ACCEPT_IN_RX_FIFO0, FDCAN_FILTER_REMOTE, FDCAN_FILTER_REMOTE);
+
+  /* Start CAN and activate RX Interrupt */
+  if (HAL_FDCAN_Start(&hfdcan1) != HAL_OK) {
+      Error_Handler();
+  }
+  if (HAL_FDCAN_ActivateNotification(&hfdcan1, FDCAN_IT_RX_FIFO0_NEW_MESSAGE, 0) != HAL_OK) {
+      Error_Handler();
+  }
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -127,6 +158,8 @@ int main(void)
   {
     counter++; /* TODO: Delete later */
     Vision_Sensors_Read();
+    Vision_Sensors_Handler();
+    Line_Sensors_Handler();
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -186,9 +219,51 @@ void SystemClock_Config(void)
   */
 void Line_Sensors_Handler (void)
 {
+    // Compress 12-bit DMA (0-4095) down to 8-bit Legacy (0-255)
+    lineMeasurements[0] = (uint8_t)(adc1_buffer[0] >> 4);
+    lineMeasurements[1] = (uint8_t)(adc1_buffer[1] >> 4);
+    lineMeasurements[2] = (uint8_t)(adc1_buffer[2] >> 4);
+    lineMeasurements[3] = (uint8_t)(adc2_buffer[0] >> 4);
+    lineMeasurements[4] = (uint8_t)(adc2_buffer[1] >> 4);
+    lineMeasurements[5] = (uint8_t)(adc2_buffer[2] >> 4);
+    lineMeasurements[6] = (uint8_t)(adc3_buffer[0] >> 4);
+    lineMeasurements[7] = (uint8_t)(adc3_buffer[1] >> 4);
 
+    if (state == SCANNING) {
+        if (HAL_GetTick() - lastSendTime > 10) {
+            FDCAN_Transmit(CAN_LINE_MASK_ID, lineMeasurements, 8);
+            lastSendTime = HAL_GetTick();
+        }
+    } 
+    else if (state == FAST) {
+        uint8_t currentDetection = 0;
+        
+        for (uint8_t i = 0; i < 8; i++) {
+            if (lineMeasurements[i] < lineThresholds[i]) {
+                currentDetection |= (1 << i);
+            }
+        }
+
+        // 3ms Debounce check
+        if ((currentDetection != previousDetection) && (HAL_GetTick() - lastSendTime > 3)) {
+            for (uint8_t i = 0; i < 8; i++) {
+                uint8_t currBit = (currentDetection >> i) & 0x01;
+                uint8_t prevBit = (previousDetection >> i) & 0x01;
+                
+                if (currBit != prevBit) {
+                    FDCAN_Transmit(CAN_LINE_MASK_ID + i, &currBit, 1);
+                }
+            }
+            previousDetection = currentDetection;
+            lastSendTime = HAL_GetTick();
+        }
+    }
 }
 
+/**
+  * @brief  This function used to handle the line sensors
+  * @retval None
+  */
 void Vision_Sensors_Read (void)
 {
   vision_buffer[0] = !HAL_GPIO_ReadPin(IN_S1_GPIO_Port, IN_S1_Pin); /* Temp not used. */
@@ -201,6 +276,134 @@ void Vision_Sensors_Read (void)
   return;
 }
 
+/**
+  * @brief  This function used to handle the line sensors
+  * @retval None
+  */
+void Vision_Sensors_Handler (void)
+{
+  static uint8_t previousDistance[6] = {0};
+    static uint32_t lastDistTime[6] = {0};
+
+    for (uint8_t i = 0; i < 6; i++) {
+        uint8_t dist = (uint8_t)vision_buffer[i];
+        
+        if ((dist != previousDistance[i]) && (HAL_GetTick() - lastDistTime[i] > 10)) {
+            previousDistance[i] = dist;
+            lastDistTime[i] = HAL_GetTick();
+            FDCAN_Transmit(CAN_VISION_MASK_ID + i, &dist, 1);
+        }
+    }
+
+}
+
+/**
+  * @brief  Transmits an Extended ID FDCAN Message
+  */
+void FDCAN_Transmit(uint32_t id, const uint8_t *buffer, uint8_t buffer_size) 
+{
+    FDCAN_TxHeaderTypeDef TxHeader;
+    TxHeader.Identifier = id;
+    TxHeader.IdType = FDCAN_EXTENDED_ID;
+    TxHeader.TxFrameType = FDCAN_DATA_FRAME;
+    TxHeader.DataLength = (buffer_size == 8) ? FDCAN_DLC_BYTES_8 : FDCAN_DLC_BYTES_1;
+    TxHeader.ErrorStateIndicator = FDCAN_ESI_ACTIVE;
+    TxHeader.BitRateSwitch = FDCAN_BRS_OFF;
+    TxHeader.FDFormat = FDCAN_CLASSIC_CAN;
+    TxHeader.TxEventFifoControl = FDCAN_NO_TX_EVENTS;
+    TxHeader.MessageMarker = 0;
+
+    // if (HAL_FDCAN_GetTxFifoFreeLevel(&hfdcan1) > 0) {
+    //     HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &TxHeader, buffer);
+    // }
+
+    // If adding the message fails (e.g., bus error or mailbox full), restart CAN
+    if (HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &TxHeader, buffer) != HAL_OK) {
+        FDCAN_Restart();
+    }
+}
+
+/**
+  * @brief  This function used to handle the line sensors
+  * @retval None
+  */
+void FDCAN_Restart(void) 
+{
+    HAL_Delay(1);
+
+    HAL_FDCAN_Stop(&hfdcan1);
+    HAL_FDCAN_DeInit(&hfdcan1);
+    
+    // Re-initialize hardware using the CubeMX generated function
+    MX_FDCAN1_Init();
+
+    // Re-apply the filters (CRITICAL: DeInit wipes these out)
+    HAL_FDCAN_ConfigGlobalFilter(&hfdcan1, FDCAN_REJECT, FDCAN_REJECT, FDCAN_FILTER_REMOTE, FDCAN_FILTER_REMOTE);
+    HAL_FDCAN_ConfigGlobalFilter(&hfdcan1, FDCAN_ACCEPT_IN_RX_FIFO0, FDCAN_ACCEPT_IN_RX_FIFO0, FDCAN_FILTER_REMOTE, FDCAN_FILTER_REMOTE);
+
+    HAL_FDCAN_Start(&hfdcan1);
+
+    if (HAL_FDCAN_ActivateNotification(&hfdcan1, FDCAN_IT_RX_FIFO0_NEW_MESSAGE, 0) != HAL_OK) {
+        Error_Handler();
+    }
+}
+
+/**
+  * @brief  Listens for configuration commands from the main board
+  */
+void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs) 
+{
+    // FDCAN_RxHeaderTypeDef RxHeader;
+    // uint8_t RxData[8];
+
+    // if ((RxFifo0ITs & FDCAN_IT_RX_FIFO0_NEW_MESSAGE) != RESET) {
+    //     if (HAL_FDCAN_GetRxMessage(hfdcan, FDCAN_RX_FIFO0, &RxHeader, RxData) == HAL_OK) {
+            
+    //         if ((RxHeader.Identifier & 0xFF) == CAN_LINE_MASK_ID) {
+    //             // Command: Set Mode (0x21)
+    //             if ((RxHeader.Identifier >> 8) == COMMAND_SET_MODE) {
+    //                 state = RxData[0];
+    //             } 
+    //             // Command: Set Thresholds (0x20)
+    //             else if ((RxHeader.Identifier >> 8) == COMMAND_SET_THRESHOLDS) {
+    //                 for(int i = 0; i < 8; i++) {
+    //                     lineThresholds[i] = RxData[i];
+    //                 }
+    //             }
+    //         }
+    //     }
+    //     HAL_FDCAN_ActivateNotification(hfdcan, FDCAN_IT_RX_FIFO0_NEW_MESSAGE, 0);
+    // }
+    FDCAN_RxHeaderTypeDef RxHeader;
+    uint8_t RxData[8];
+
+    if ((RxFifo0ITs & FDCAN_IT_RX_FIFO0_NEW_MESSAGE) != RESET) {
+        
+        // If reading the message fails, restart CAN
+        if (HAL_FDCAN_GetRxMessage(hfdcan, FDCAN_RX_FIFO0, &RxHeader, RxData) != HAL_OK) {
+            FDCAN_Restart();
+            return; // Exit the callback early since data is invalid
+        }
+            
+        if ((RxHeader.Identifier & 0xFF) == CAN_LINE_MASK_ID) {
+            // Command: Set Mode (0x21)
+            if ((RxHeader.Identifier >> 8) == COMMAND_SET_MODE) {
+                state = RxData[0];
+            } 
+            // Command: Set Thresholds (0x20)
+            else if ((RxHeader.Identifier >> 8) == COMMAND_SET_THRESHOLDS) {
+                for(int i = 0; i < 8; i++) {
+                    lineThresholds[i] = RxData[i];
+                }
+            }
+        }
+        
+        // If re-arming the interrupt fails, restart CAN
+        if (HAL_FDCAN_ActivateNotification(hfdcan, FDCAN_IT_RX_FIFO0_NEW_MESSAGE, 0) != HAL_OK) {
+            FDCAN_Restart();
+        }
+    }
+}
 /* USER CODE END 4 */
 
 /**
